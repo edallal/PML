@@ -1,0 +1,61 @@
+---
+title: "Practical Machine Learning Final Project"
+author: "Eric Dallal"
+date: "July 2nd, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+In this project, I build a predictive model which, given sensor data worn by people performing barbell lifts, classifies their performance in the task as either correct or as one of four distinct variations of incorrect lifts. The training data was obtained from 6 participants performing the exercises. Data was obtained from accelerometers on the belt, forearm, arm, and dumbell. The four distinct variations of incorrect lifts were as follows:
+
+* throwing the elbows to the front;
+* lifting the dumbbell only halfway;
+* lowering the dumbbell only halfway;
+* and throwing the hips to the front.
+
+Participants were instructed in performing exercises in the correct and each incorrect way, following which they performed the exercise in each of the five ways, while being supervised by an expert weightlifter. The final data set consisted of 19622 observations of 160 features. For more information on the data set and the means by which the data was collected, see <http://groupware.les.inf.puc-rio.br/public/papers/2013.Velloso.QAR-WLE.pdf>.
+
+The remainder of this document describes the manner in which the predictor was built and how it performed.
+
+## The Predictive Model
+
+I used a random forest classifier for this predictive task. This choice of classifier was made primarily because the sensors (and therefore the data) are characteristically noisy, making random forests a solid choice. The data was pre-processed by removing features falling into the following categories:
+
+* features representing some notion of when an exercise was performed (i.e., observation index, time stamps, window numbers);
+* features where most of the entries were marked NA;
+* and features where most of the entries were missing.
+
+```{r, echo=TRUE, message=FALSE}
+library(caret)
+library(randomForest)
+set.seed(76)
+training <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+trWName <- training[,c(2,7:160)]
+notNA <- (apply(is.na(trWName), 2, mean) < 0.2)
+trWNameRed <- trWName[,notNA]
+notBlank <- (apply(trWNameRed == "", 2, mean) < 0.2)
+trWNameRed <- trWNameRed[,notBlank]
+```
+
+This left 55 features out of an inital 160, including the *classe* variable to be predicted. Significantly, the name of the participants was used in the final data set, so that the trained model could not be used to classify the performance of any non-partipant. No other pre-processing was performed.
+
+The random forest was trained using 5-fold cross validation and the default parameters, with the exception of the $mtry$ parameter which controls the number of randomly selected features to try when choosing a new split in a decision tree. This parameter was chosen to be equal to 7, obtained by taking the square root of the number features (55) and rounding down, which is a standard choice for random forests.
+
+```{r, echo=TRUE, message=FALSE}
+rfParam <- expand.grid(mtry=round(sqrt(ncol(trWNameRed))))
+m <- train(classe~., data=trWNameRed, method="rf", trControl=trainControl(method="cv",number=5), tuneGrid=rfParam)
+```
+
+## Performance
+As seen below, the resulting random forest used 54 predictors consisting of a total of 500 trees and had an accuracy of 0.998216. The out of bag estimate of the error rate was 0.14%, which is also the expected out of sample error.
+```{r}
+m
+```
+
+```{r}
+m$finalModel
+```
